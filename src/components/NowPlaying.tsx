@@ -1,8 +1,8 @@
-
 import { useState } from 'react';
 import { ChevronDown, MoreHorizontal, Heart, Shuffle, SkipBack, Play, Pause, SkipForward, Repeat, Volume2, Share, Plus, Mic2 } from 'lucide-react';
 import { usePlayer } from '../contexts/PlayerContext';
 import { useNavigate } from 'react-router-dom';
+import Queue from './Queue';
 
 const NowPlaying = () => {
   const {
@@ -193,7 +193,7 @@ const NowPlaying = () => {
               <Mic2 size={20} />
             </button>
             <button
-              onClick={() => setShowQueue(!showQueue)}
+              onClick={() => setShowQueue(true)}
               className="p-2 text-neutral-400 hover:text-white hover:bg-white hover:bg-opacity-10 rounded-full transition-all"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -242,6 +242,9 @@ const NowPlaying = () => {
             </div>
           </div>
         )}
+
+        {/* Queue Modal */}
+        <Queue open={showQueue} onOpenChange={setShowQueue} />
       </div>
     </div>
   );

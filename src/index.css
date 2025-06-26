@@ -1,7 +1,16 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+html, body, #root {
+  @apply bg-spotify-black text-white font-spotify min-h-screen;
+}
+
+body {
+  background-color: #191414;
+  color: #fff;
+  font-family: 'Circular', system-ui, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
 
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. */
 

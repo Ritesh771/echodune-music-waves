@@ -9,10 +9,10 @@ from django.core.files import File
 from django.conf import settings
 
 class Command(BaseCommand):
-    help = 'Import songs from echodune/music/ and extract metadata.'
+    help = 'Import songs from echodune/media/songs/ and extract metadata and cover images.'
 
     def handle(self, *args, **options):
-        music_dir = os.path.join(BASE_DIR, 'music')
+        music_dir = os.path.join(BASE_DIR, 'media', 'songs')
         if not os.path.exists(music_dir):
             self.stdout.write(self.style.ERROR(f"Music directory not found: {music_dir}"))
             return
@@ -29,19 +29,18 @@ class Command(BaseCommand):
                 album = tags.get('TALB').text[0] if tags.get('TALB') else ''
                 duration = audio.info.length
                 # Check for cover art
-                cover_image = None
-                if tags.get('APIC:'):  # ID3v2.3+
-                    apic = tags.get('APIC:')
-                    cover_data = apic.data
-                    ext = apic.mime.split('/')[-1]
-                    cover_filename = f"{os.path.splitext(filename)[0]}_cover.{ext}"
-                    cover_path = os.path.join(settings.MEDIA_ROOT, 'covers', cover_filename)
-                    os.makedirs(os.path.dirname(cover_path), exist_ok=True)
-                    with open(cover_path, 'wb') as img_out:
-                        img_out.write(cover_data)
-                    cover_image_rel = f"covers/{cover_filename}"
-                else:
-                    cover_image_rel = None
+                cover_image_rel = None
+                if tags:
+                    for tag in tags.values():
+                        if isinstance(tag, APIC):
+                            ext = tag.mime.split('/')[-1]
+                            cover_filename = f"{os.path.splitext(filename)[0]}_cover.{ext}"
+                            cover_path = os.path.join(settings.MEDIA_ROOT, 'covers', cover_filename)
+                            os.makedirs(os.path.dirname(cover_path), exist_ok=True)
+                            with open(cover_path, 'wb') as img_out:
+                                img_out.write(tag.data)
+                            cover_image_rel = f"covers/{cover_filename}"
+                            break
 
                 # Save Song object
                 song_obj, created = Song.objects.get_or_create(

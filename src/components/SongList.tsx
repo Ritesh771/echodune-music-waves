@@ -15,14 +15,16 @@ export interface Song {
 function getFullUrl(path?: string) {
   if (!path) return '/placeholder.svg';
   if (path.startsWith('http')) return path;
-  return `${API_BASE_URL}/media/${path.replace(/^\/+/, '')}`;
+  if (path.startsWith('/media/')) return `${API_BASE_URL}${path}`;
+  if (path.startsWith('media/')) return `${API_BASE_URL}/${path}`;
+  return `${API_BASE_URL}/media/${path.replace(/^\/+/,'')}`;
 }
 
 const SongList = ({ songs, likedSongIds = [], onLikeToggle }: { songs: Song[] | undefined | null; likedSongIds?: number[]; onLikeToggle?: (songId: number) => void }) => {
-  const { setCurrentTrack, togglePlay } = usePlayer();
+  const { playTrack } = usePlayer();
 
   const playSong = (song: Song) => {
-    setCurrentTrack({
+    const track = {
       id: String(song.id),
       title: song.title,
       artist: song.artist,
@@ -30,8 +32,11 @@ const SongList = ({ songs, likedSongIds = [], onLikeToggle }: { songs: Song[] | 
       duration: song.duration ? `${Math.floor(song.duration / 60)}:${('0' + Math.floor(song.duration % 60)).slice(-2)}` : '',
       cover: getFullUrl(song.cover_image),
       file: getFullUrl(song.file),
-    });
-    togglePlay();
+    };
+    // Debug logging
+    console.log('Song clicked:', song);
+    console.log('Track passed to setCurrentTrack:', track);
+    playTrack(track);
   };
 
   const safeSongs = Array.isArray(songs) ? songs : [];

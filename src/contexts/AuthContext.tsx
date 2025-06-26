@@ -5,6 +5,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   logout: () => void;
   loading: boolean;
+  login: (access: string, refresh: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,6 +21,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(false);
   }, []);
 
+  const login = (access: string, refresh: string) => {
+    localStorage.setItem('access_token', access);
+    localStorage.setItem('refresh_token', refresh);
+    setIsAuthenticated(true);
+    navigate('/');
+  };
+
   const logout = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
@@ -28,7 +36,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, logout, loading }}>
+    <AuthContext.Provider value={{ isAuthenticated, logout, loading, login }}>
       {children}
     </AuthContext.Provider>
   );
