@@ -1,13 +1,47 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import { Routes, Route } from 'react-router-dom';
+import Sidebar from '../components/Sidebar';
+import TopBar from '../components/TopBar';
+import Home from '../components/Home';
+import Search from '../components/Search';
+import Library from '../components/Library';
+import NowPlaying from '../components/NowPlaying';
+import MiniPlayer from '../components/MiniPlayer';
+import { PlayerProvider } from '../contexts/PlayerContext';
 
 const Index = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+    <PlayerProvider>
+      <div className="h-screen bg-black text-white overflow-hidden">
+        <Routes>
+          <Route path="/now-playing" element={<NowPlaying />} />
+          <Route path="*" element={
+            <>
+              <div className="flex h-full">
+                {/* Sidebar */}
+                <Sidebar />
+                
+                {/* Main Content */}
+                <div className="flex-1 flex flex-col">
+                  <TopBar />
+                  
+                  <main className="flex-1 overflow-auto bg-gradient-to-b from-neutral-900 to-black">
+                    <Routes>
+                      <Route path="/" element={<Home />} />
+                      <Route path="/search" element={<Search />} />
+                      <Route path="/library" element={<Library />} />
+                    </Routes>
+                  </main>
+                </div>
+              </div>
+              
+              {/* Mini Player */}
+              <MiniPlayer />
+            </>
+          } />
+        </Routes>
       </div>
-    </div>
+    </PlayerProvider>
   );
 };
 
