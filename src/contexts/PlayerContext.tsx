@@ -42,14 +42,35 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isShuffled, setIsShuffled] = useState(false);
   const [isRepeating, setIsRepeating] = useState(false);
-  const [volume, setVolume] = useState(50);
+  const [volume, setVolume] = useState(75);
   const [progress, setProgress] = useState(0);
 
-  const togglePlay = () => setIsPlaying(!isPlaying);
-  const toggleShuffle = () => setIsShuffled(!isShuffled);
-  const toggleRepeat = () => setIsRepeating(!isRepeating);
-  const nextTrack = () => console.log('Next track');
-  const prevTrack = () => console.log('Previous track');
+  const togglePlay = () => {
+    setIsPlaying(!isPlaying);
+    console.log('Toggled play:', !isPlaying);
+  };
+  
+  const toggleShuffle = () => {
+    setIsShuffled(!isShuffled);
+    console.log('Toggled shuffle:', !isShuffled);
+  };
+  
+  const toggleRepeat = () => {
+    setIsRepeating(!isRepeating);
+    console.log('Toggled repeat:', !isRepeating);
+  };
+  
+  const nextTrack = () => {
+    console.log('Next track');
+    // Simulate progress reset and new track
+    setProgress(0);
+  };
+  
+  const prevTrack = () => {
+    console.log('Previous track');
+    // Simulate progress reset
+    setProgress(0);
+  };
 
   return (
     <PlayerContext.Provider value={{

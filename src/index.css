@@ -97,13 +97,17 @@
   }
 }
 
-/* Custom Spotify-like styles */
-.spotify-green {
-  background-color: #1db954;
+/* Custom Echodune-themed styles */
+.echodune-purple {
+  background: linear-gradient(135deg, #8B5CF6 0%, #A855F7 100%);
 }
 
-.spotify-green:hover {
-  background-color: #1ed760;
+.echodune-purple:hover {
+  background: linear-gradient(135deg, #7C3AED 0%, #9333EA 100%);
+}
+
+.echodune-gradient {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .line-clamp-2 {
@@ -113,7 +117,7 @@
   overflow: hidden;
 }
 
-/* Smooth scrollbars */
+/* Smooth scrollbars with purple theme */
 ::-webkit-scrollbar {
   width: 8px;
 }
@@ -123,12 +127,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #535353;
+  background: linear-gradient(to bottom, #8B5CF6, #A855F7);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #727272;
+  background: linear-gradient(to bottom, #7C3AED, #9333EA);
 }
 
 /* Responsive grid utilities */
@@ -142,4 +146,36 @@
   .grid-cols-auto-fill {
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   }
+}
+
+/* Custom animations */
+@keyframes pulse-purple {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.animate-pulse-purple {
+  animation: pulse-purple 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Gradient text animations */
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
 }
