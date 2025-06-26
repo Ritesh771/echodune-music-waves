@@ -7,6 +7,10 @@ import Search from '../components/Search';
 import Library from '../components/Library';
 import NowPlaying from '../components/NowPlaying';
 import MiniPlayer from '../components/MiniPlayer';
+import Profile from '../components/Profile';
+import Settings from '../components/Settings';
+import LikedSongs from '../components/LikedSongs';
+import Notifications from '../components/Notifications';
 import { PlayerProvider } from '../contexts/PlayerContext';
 
 const Index = () => {
@@ -30,6 +34,10 @@ const Index = () => {
                       <Route path="/" element={<Home />} />
                       <Route path="/search" element={<Search />} />
                       <Route path="/library" element={<Library />} />
+                      <Route path="/profile" element={<Profile />} />
+                      <Route path="/settings" element={<Settings />} />
+                      <Route path="/liked-songs" element={<LikedSongs />} />
+                      <Route path="/notifications" element={<Notifications />} />
                     </Routes>
                   </main>
                 </div>
