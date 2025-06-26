@@ -24,6 +24,9 @@ const MiniPlayer = () => {
     prevTrack,
   } = usePlayer();
 
+  // Debug log
+  console.log('MiniPlayer rendered. currentTrack:', currentTrack);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isLiked, setIsLiked] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 
 interface Track {
   id: string;
@@ -30,6 +30,8 @@ interface PlayerContextType {
   setDuration: (duration: number) => void;
   nextTrack: () => void;
   prevTrack: () => void;
+  queue: Track[];
+  playTrack: (track: Track, newQueue?: Track[], index?: number) => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -53,6 +55,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    console.log('PlayerProvider: currentTrack changed:', currentTrack);
+  }, [currentTrack]);
 
   const setCurrentTrack = (track: Track | null, newQueue?: Track[], index?: number) => {
     if (newQueue && typeof index === 'number') {
@@ -132,6 +138,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setDuration(0);
   };
 
+  const playTrack = (track: Track, newQueue?: Track[], index?: number) => {
+    setCurrentTrack(track, newQueue, index);
+    setIsPlaying(true);
+  };
+
   return (
     <PlayerContext.Provider value={{
       currentTrack,
@@ -153,6 +164,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setDuration,
       nextTrack,
       prevTrack,
+      queue,
+      playTrack,
     }}>
       {children}
     </PlayerContext.Provider>

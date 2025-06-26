@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { API_BASE_URL } from '../config';
+import SongList, { Song } from './SongList';
 
 function getFullUrl(path?: string) {
   if (!path) return '/placeholder.svg';
@@ -17,7 +18,7 @@ const fetchPlaylists = async () => {
   return res.json();
 };
 
-const createPlaylist = async (name: string) => {
+const createPlaylist = async ({ name }: { name: string }) => {
   const token = localStorage.getItem('access_token');
   const res = await fetch(`${API_BASE_URL}/api/auth/playlists/`, {
     method: 'POST',
@@ -31,12 +32,20 @@ const createPlaylist = async (name: string) => {
   return res.json();
 };
 
+interface Playlist {
+  id: number;
+  name: string;
+  cover_image?: string;
+  songs: Song[];
+}
+
 const Playlists = () => {
   const queryClient = useQueryClient();
   const { data: playlists, isLoading, error } = useQuery({ queryKey: ['playlists'], queryFn: fetchPlaylists });
   const [showModal, setShowModal] = useState(false);
   const [newName, setNewName] = useState('');
-  const mutation = useMutation(createPlaylist, {
+  const mutation = useMutation({
+    mutationFn: createPlaylist,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['playlists'] });
       setShowModal(false);
@@ -58,7 +67,7 @@ const Playlists = () => {
       {isLoading && <div className="text-white">Loading playlists...</div>}
       {error && <div className="text-red-500">Failed to load playlists.</div>}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {playlists && playlists.map((playlist: any) => (
+        {playlists && playlists.map((playlist: Playlist) => (
           <div key={playlist.id} className="bg-neutral-900 p-4 rounded-lg flex flex-col items-center">
             <img
               src={getFullUrl(playlist.cover_image)}
@@ -89,8 +98,11 @@ const Playlists = () => {
               >Cancel</button>
               <button
                 className="px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-500 font-semibold"
-                onClick={() => mutation.mutate(newName)}
-                disabled={!newName || mutation.isLoading}
+                onClick={() => {
+                  console.log('Create playlist clicked:', newName);
+                  mutation.mutate({ name: newName });
+                }}
+                disabled={!newName || mutation.isPending}
               >Create</button>
             </div>
             {mutation.isError && <div className="text-red-500 mt-2">Failed to create playlist.</div>}
