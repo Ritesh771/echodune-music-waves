@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Heart, Volume2, Shuffle, Repeat, MoreHorizontal } from 'lucide-react';
 import { usePlayer } from '../contexts/PlayerContext';
 import { useNavigate } from 'react-router-dom';
@@ -12,25 +11,47 @@ const MiniPlayer = () => {
     isRepeating,
     volume,
     progress,
+    currentTime,
+    duration,
     togglePlay,
     toggleShuffle,
     toggleRepeat,
     setVolume,
     setProgress,
+    setCurrentTime,
+    setDuration,
     nextTrack,
     prevTrack,
   } = usePlayer();
 
-  const navigate = useNavigate();
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isLiked, setIsLiked] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!audioRef.current) return;
+    audioRef.current.volume = volume / 100;
+  }, [volume]);
+
+  useEffect(() => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.play().catch(() => {});
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying, currentTrack]);
 
   if (!currentTrack) return null;
 
   const handleProgressChange = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!audioRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const percent = ((e.clientX - rect.left) / rect.width) * 100;
-    setProgress(Math.max(0, Math.min(100, percent)));
+    const percent = ((e.clientX - rect.left) / rect.width);
+    const newTime = percent * (audioRef.current.duration || 0);
+    audioRef.current.currentTime = newTime;
+    setProgress(percent * 100);
   };
 
   const handleVolumeChange = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -39,8 +60,31 @@ const MiniPlayer = () => {
     setVolume(Math.max(0, Math.min(100, percent)));
   };
 
+  const formatTime = (sec: number) => {
+    if (!isFinite(sec)) return '0:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-neutral-900 border-t border-neutral-800 p-4 z-40">
+      <audio
+        ref={audioRef}
+        src={currentTrack.file}
+        onEnded={nextTrack}
+        onTimeUpdate={e => {
+          const audio = e.currentTarget;
+          setCurrentTime(audio.currentTime);
+          setProgress((audio.currentTime / (audio.duration || 1)) * 100);
+        }}
+        onLoadedMetadata={e => {
+          const audio = e.currentTarget;
+          setDuration(audio.duration);
+        }}
+        style={{ display: 'none' }}
+        autoPlay={isPlaying}
+      />
       <div className="flex items-center justify-between">
         {/* Track Info */}
         <div 
@@ -120,7 +164,7 @@ const MiniPlayer = () => {
 
           {/* Progress Bar */}
           <div className="flex items-center space-x-2 w-full">
-            <span className="text-xs text-neutral-400">1:23</span>
+            <span className="text-xs text-neutral-400">{formatTime(currentTime)}</span>
             <div 
               className="flex-1 bg-neutral-600 h-1 rounded-full cursor-pointer group"
               onClick={handleProgressChange}
@@ -132,7 +176,7 @@ const MiniPlayer = () => {
                 <div className="absolute right-0 top-1/2 transform -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
               </div>
             </div>
-            <span className="text-xs text-neutral-400">{currentTrack.duration}</span>
+            <span className="text-xs text-neutral-400">{formatTime(duration)}</span>
           </div>
         </div>
 

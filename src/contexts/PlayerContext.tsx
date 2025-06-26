@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, ReactNode } from 'react';
 
 interface Track {
@@ -8,6 +7,7 @@ interface Track {
   album: string;
   duration: string;
   cover: string;
+  file: string;
 }
 
 interface PlayerContextType {
@@ -17,12 +17,17 @@ interface PlayerContextType {
   isRepeating: boolean;
   volume: number;
   progress: number;
-  setCurrentTrack: (track: Track | null) => void;
+  currentTime: number;
+  duration: number;
+  setCurrentTrack: (track: Track | null, queue?: Track[], index?: number) => void;
+  setQueue: (queue: Track[], index: number) => void;
   togglePlay: () => void;
   toggleShuffle: () => void;
   toggleRepeat: () => void;
   setVolume: (volume: number) => void;
   setProgress: (progress: number) => void;
+  setCurrentTime: (time: number) => void;
+  setDuration: (duration: number) => void;
   nextTrack: () => void;
   prevTrack: () => void;
 }
@@ -38,38 +43,93 @@ export const usePlayer = () => {
 };
 
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
-  const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
+  const [queue, setQueueState] = useState<Track[]>([]);
+  const [currentIndex, setCurrentIndex] = useState<number>(-1);
+  const [currentTrack, setCurrentTrackState] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isShuffled, setIsShuffled] = useState(false);
   const [isRepeating, setIsRepeating] = useState(false);
   const [volume, setVolume] = useState(75);
   const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  const setCurrentTrack = (track: Track | null, newQueue?: Track[], index?: number) => {
+    if (newQueue && typeof index === 'number') {
+      setQueueState(newQueue);
+      setCurrentIndex(index);
+      setCurrentTrackState(track);
+    } else if (track) {
+      setCurrentTrackState(track);
+      // If the track is in the queue, update index
+      const idx = queue.findIndex(t => t.id === track.id);
+      if (idx !== -1) setCurrentIndex(idx);
+    } else {
+      setCurrentTrackState(null);
+      setCurrentIndex(-1);
+    }
+    setProgress(0);
+    setCurrentTime(0);
+    setDuration(0);
+  };
+
+  const setQueue = (newQueue: Track[], index: number) => {
+    setQueueState(newQueue);
+    setCurrentIndex(index);
+    setCurrentTrackState(newQueue[index] || null);
+    setProgress(0);
+    setCurrentTime(0);
+    setDuration(0);
+  };
 
   const togglePlay = () => {
     setIsPlaying(!isPlaying);
-    console.log('Toggled play:', !isPlaying);
   };
   
   const toggleShuffle = () => {
     setIsShuffled(!isShuffled);
-    console.log('Toggled shuffle:', !isShuffled);
   };
   
   const toggleRepeat = () => {
     setIsRepeating(!isRepeating);
-    console.log('Toggled repeat:', !isRepeating);
   };
   
   const nextTrack = () => {
-    console.log('Next track');
-    // Simulate progress reset and new track
+    if (queue.length === 0) return;
+    let nextIdx = currentIndex + 1;
+    if (isShuffled) {
+      nextIdx = Math.floor(Math.random() * queue.length);
+    }
+    if (nextIdx >= queue.length) {
+      if (isRepeating) {
+        nextIdx = 0;
+      } else {
+        setIsPlaying(false);
+        return;
+      }
+    }
+    setCurrentIndex(nextIdx);
+    setCurrentTrackState(queue[nextIdx]);
     setProgress(0);
+    setCurrentTime(0);
+    setDuration(0);
   };
   
   const prevTrack = () => {
-    console.log('Previous track');
-    // Simulate progress reset
+    if (queue.length === 0) return;
+    let prevIdx = currentIndex - 1;
+    if (prevIdx < 0) {
+      if (isRepeating) {
+        prevIdx = queue.length - 1;
+      } else {
+        prevIdx = 0;
+      }
+    }
+    setCurrentIndex(prevIdx);
+    setCurrentTrackState(queue[prevIdx]);
     setProgress(0);
+    setCurrentTime(0);
+    setDuration(0);
   };
 
   return (
@@ -80,12 +140,17 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       isRepeating,
       volume,
       progress,
+      currentTime,
+      duration,
       setCurrentTrack,
+      setQueue,
       togglePlay,
       toggleShuffle,
       toggleRepeat,
       setVolume,
       setProgress,
+      setCurrentTime,
+      setDuration,
       nextTrack,
       prevTrack,
     }}>

@@ -1,12 +1,13 @@
-
-import { Home, Search, BookOpen, Plus, Heart } from 'lucide-react';
+import { Home, Search, BookOpen, Plus, Heart, LogOut } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import CreatePlaylist from './CreatePlaylist';
+import { useAuth } from '../contexts/AuthContext';
 
 const Sidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { logout } = useAuth();
   const [showCreatePlaylist, setShowCreatePlaylist] = useState(false);
   const [playlists, setPlaylists] = useState([
     'Liked Songs',
@@ -89,6 +90,16 @@ const Sidebar = () => {
               <Heart size={16} />
             </div>
             <span className="text-sm font-medium">Liked Songs</span>
+          </button>
+
+          <button
+            onClick={logout}
+            className="flex items-center space-x-4 w-full px-4 py-3 text-neutral-400 hover:text-white transition-colors rounded-md hover:bg-neutral-800"
+          >
+            <div className="w-6 h-6 bg-neutral-600 rounded-sm flex items-center justify-center">
+              <LogOut size={16} />
+            </div>
+            <span className="text-sm font-medium">Logout</span>
           </button>
         </div>
 
