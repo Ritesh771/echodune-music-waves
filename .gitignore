@@ -19,6 +19,7 @@ echodune/media/
 echodune/echodune/media/
 echodune/music/
 song_cache/
+chroma/
 
 # Django migrations (except __init__.py)
 **/migrations/*.pyc
