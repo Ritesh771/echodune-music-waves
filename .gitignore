@@ -18,6 +18,7 @@ __pycache__/
 echodune/media/
 echodune/echodune/media/
 echodune/music/
+song_cache/
 
 # Django migrations (except __init__.py)
 **/migrations/*.pyc
