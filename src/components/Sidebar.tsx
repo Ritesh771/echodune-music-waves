@@ -1,11 +1,12 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home as HomeIcon, Search as SearchIcon, Library as LibraryIcon, Heart, User, Settings, LogOut } from 'lucide-react';
+import { Home as HomeIcon, Search as SearchIcon, Library as LibraryIcon, Heart, User, Settings, LogOut, ListMusic } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const navItems = [
   { label: 'Home', path: '/', icon: HomeIcon },
   { label: 'Search', path: '/search', icon: SearchIcon },
   { label: 'Library', path: '/library', icon: LibraryIcon },
+  { label: 'Playlists', path: '/playlists', icon: ListMusic },
   { label: 'Liked Songs', path: '/liked-songs', icon: Heart },
 ];
 

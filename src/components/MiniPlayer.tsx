@@ -1,9 +1,18 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Heart, Volume2, Shuffle, Repeat, MoreHorizontal } from 'lucide-react';
 import { usePlayer } from '../contexts/PlayerContext';
 import { useNavigate } from 'react-router-dom';
+import { useLikedSongs } from '../hooks/use-liked-songs';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from './ui/dropdown-menu';
+import AddToPlaylistDialog from './ui/AddToPlaylistDialog';
 
 const MiniPlayer = () => {
+  // All hooks must be at the top
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const navigate = useNavigate();
+  const [showAddToPlaylistDialog, setShowAddToPlaylistDialog] = useState(false);
+
   const {
     currentTrack,
     isPlaying,
@@ -22,40 +31,63 @@ const MiniPlayer = () => {
     setDuration,
     nextTrack,
     prevTrack,
+    seek,
   } = usePlayer();
+
+  const { isLiked, likeSong, unlikeSong, liking, unliking } = useLikedSongs();
 
   // Debug log
   console.log('MiniPlayer rendered. currentTrack:', currentTrack);
+  if (currentTrack) {
+    console.log('MiniPlayer audio src:', currentTrack.file);
+  }
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [isLiked, setIsLiked] = useState(false);
-  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
-  const navigate = useNavigate();
+  // --- Drag-to-seek logic ---
+  const [isDragging, setIsDragging] = useState(false);
 
-  useEffect(() => {
-    if (!audioRef.current) return;
-    audioRef.current.volume = volume / 100;
-  }, [volume]);
+  const handlePointerMove = (e: PointerEvent) => handleSeek(e);
+  const handlePointerUp = (e: PointerEvent) => handleSeekEnd(e);
 
-  useEffect(() => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.play().catch(() => {});
-    } else {
-      audioRef.current.pause();
+  const handleSeekStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    setIsDragging(true);
+    handleSeek(e);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+  };
+
+  const handleSeek = useCallback((e: PointerEvent | React.PointerEvent<HTMLDivElement>) => {
+    const bar = document.getElementById('miniplayer-progress-bar');
+    if (!bar) return;
+    const rect = bar.getBoundingClientRect();
+    const clientX = (e as PointerEvent).clientX !== undefined ? (e as PointerEvent).clientX : (e as React.PointerEvent).clientX;
+    let percent = (clientX - rect.left) / rect.width;
+    percent = Math.max(0, Math.min(1, percent));
+    const newTime = percent * (duration || 0);
+    // Live scrubbing: update audio playback position in real time
+    if (duration > 0) {
+      seek(newTime);
     }
-  }, [isPlaying, currentTrack]);
+  }, [duration, seek]);
+
+  const handleSeekEnd = useCallback((e: PointerEvent) => {
+    setIsDragging(false);
+    window.removeEventListener('pointermove', handlePointerMove);
+    window.removeEventListener('pointerup', handlePointerUp);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, []);
+
+  // Always show currentTime and duration from context
+  const displayTime = currentTime;
+  const displayDuration = duration;
+  const displayProgress = (currentTime / (duration || 1)) * 100;
 
   if (!currentTrack) return null;
-
-  const handleProgressChange = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!audioRef.current) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const percent = ((e.clientX - rect.left) / rect.width);
-    const newTime = percent * (audioRef.current.duration || 0);
-    audioRef.current.currentTime = newTime;
-    setProgress(percent * 100);
-  };
 
   const handleVolumeChange = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -72,22 +104,6 @@ const MiniPlayer = () => {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-neutral-900 border-t border-neutral-800 p-4 z-40">
-      <audio
-        ref={audioRef}
-        src={currentTrack.file}
-        onEnded={nextTrack}
-        onTimeUpdate={e => {
-          const audio = e.currentTarget;
-          setCurrentTime(audio.currentTime);
-          setProgress((audio.currentTime / (audio.duration || 1)) * 100);
-        }}
-        onLoadedMetadata={e => {
-          const audio = e.currentTarget;
-          setDuration(audio.duration);
-        }}
-        style={{ display: 'none' }}
-        autoPlay={isPlaying}
-      />
       <div className="flex items-center justify-between">
         {/* Track Info */}
         <div 
@@ -106,19 +122,36 @@ const MiniPlayer = () => {
             <p className="text-sm text-neutral-400 truncate">{currentTrack.artist}</p>
           </div>
           <button
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation();
-              setIsLiked(!isLiked);
+              if (!currentTrack) return;
+              if (isLiked(Number(currentTrack.id))) {
+                unlikeSong(Number(currentTrack.id));
+              } else {
+                likeSong(Number(currentTrack.id));
+              }
             }}
-            className={`p-2 transition-all ${isLiked ? 'text-purple-500 scale-110' : 'text-neutral-400 hover:text-white hover:scale-110'}`}
+            className={`p-2 transition-all ${isLiked(Number(currentTrack.id)) ? 'text-purple-500 scale-110' : 'text-neutral-400 hover:text-white hover:scale-110'}`}
+            disabled={liking || unliking}
           >
-            <Heart size={16} fill={isLiked ? 'currentColor' : 'none'} />
+            <Heart size={16} fill={isLiked(Number(currentTrack.id)) ? 'currentColor' : 'none'} />
           </button>
           <button
-            onClick={(e) => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
             className="p-2 text-neutral-400 hover:text-white transition-colors"
           >
-            <MoreHorizontal size={16} />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <span><MoreHorizontal size={16} /></span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setShowAddToPlaylistDialog(true)}>Add to Playlist</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => alert('Go to Artist')}>Go to Artist</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => alert('Go to Album')}>Go to Album</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => alert('Share')}>Share</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </button>
         </div>
 
@@ -140,7 +173,10 @@ const MiniPlayer = () => {
             </button>
             
             <button
-              onClick={togglePlay}
+              onClick={() => {
+                console.log('Play/Pause clicked. isPlaying before:', isPlaying);
+                togglePlay();
+              }}
               className="w-8 h-8 bg-gradient-to-r from-purple-600 to-purple-500 rounded-full flex items-center justify-center hover:from-purple-500 hover:to-purple-400 hover:scale-110 transition-all"
             >
               {isPlaying ? (
@@ -167,19 +203,20 @@ const MiniPlayer = () => {
 
           {/* Progress Bar */}
           <div className="flex items-center space-x-2 w-full">
-            <span className="text-xs text-neutral-400">{formatTime(currentTime)}</span>
+            <span className="text-xs text-neutral-400">{formatTime(displayTime)}</span>
             <div 
+              id="miniplayer-progress-bar"
               className="flex-1 bg-neutral-600 h-1 rounded-full cursor-pointer group"
-              onClick={handleProgressChange}
+              onPointerDown={handleSeekStart}
             >
               <div 
                 className="bg-gradient-to-r from-purple-500 to-purple-400 h-1 rounded-full relative group-hover:from-purple-400 group-hover:to-purple-300 transition-all"
-                style={{ width: `${progress}%` }}
+                style={{ width: `${displayProgress}%` }}
               >
                 <div className="absolute right-0 top-1/2 transform -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
               </div>
             </div>
-            <span className="text-xs text-neutral-400">{formatTime(duration)}</span>
+            <span className="text-xs text-neutral-400">{formatTime(displayDuration)}</span>
           </div>
         </div>
 
@@ -207,6 +244,11 @@ const MiniPlayer = () => {
           </div>
         </div>
       </div>
+      <AddToPlaylistDialog
+        open={showAddToPlaylistDialog}
+        songId={Number(currentTrack.id)}
+        onClose={() => setShowAddToPlaylistDialog(false)}
+      />
     </div>
   );
 };

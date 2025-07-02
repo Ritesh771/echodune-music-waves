@@ -44,7 +44,24 @@ const getAuthHeaders = () => {
 };
 
 const Library = () => {
-  const [tab, setTab] = useState<'playlists' | 'liked' | 'downloads'>('playlists');
+  const [tab, setTab] = useState<'all' | 'playlists' | 'liked'>('all');
+  const [allSongsPage, setAllSongsPage] = useState(1);
+  const [allSongsSearch, setAllSongsSearch] = useState('');
+
+  // All Songs
+  const { data: allSongsData, isLoading: allSongsLoading, error: allSongsError, refetch: refetchAllSongs } = useQuery({
+    queryKey: ['all-songs', allSongsPage, allSongsSearch],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('page', String(allSongsPage));
+      if (allSongsSearch) params.append('search', allSongsSearch);
+      const res = await fetch(`${API_BASE_URL}/api/auth/songs/?${params.toString()}`, {
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) throw new Error('Failed to fetch all songs');
+      return res.json();
+    },
+  });
 
   // Playlists
   const { data: playlistsData, isLoading: playlistsLoading, error: playlistsError, refetch: refetchPlaylists } = useQuery({
@@ -60,24 +77,12 @@ const Library = () => {
 
   // Liked Songs
   const { data: likedData, isLoading: likedLoading, error: likedError, refetch: refetchLiked } = useQuery({
-    queryKey: ['liked-songs'],
+    queryKey: ['liked-songs-list'],
     queryFn: async () => {
       const res = await fetch(`${API_BASE_URL}/api/auth/liked-songs/`, {
         headers: getAuthHeaders(),
       });
       if (!res.ok) throw new Error('Failed to fetch liked songs');
-      return res.json();
-    },
-  });
-
-  // Downloads
-  const { data: downloadsData, isLoading: downloadsLoading, error: downloadsError, refetch: refetchDownloads } = useQuery({
-    queryKey: ['downloads'],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE_URL}/api/auth/downloads/`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) throw new Error('Failed to fetch downloads');
       return res.json();
     },
   });
@@ -94,6 +99,10 @@ const Library = () => {
       {/* Tabs */}
       <div className="flex space-x-4 mb-8">
         <button
+          className={`px-4 py-2 rounded-full font-semibold transition-all ${tab === 'all' ? 'bg-spotify-green text-black' : 'bg-neutral-800 text-white hover:bg-neutral-700'}`}
+          onClick={() => setTab('all')}
+        >All Songs</button>
+        <button
           className={`px-4 py-2 rounded-full font-semibold transition-all ${tab === 'playlists' ? 'bg-spotify-green text-black' : 'bg-neutral-800 text-white hover:bg-neutral-700'}`}
           onClick={() => setTab('playlists')}
         >Playlists</button>
@@ -101,13 +110,60 @@ const Library = () => {
           className={`px-4 py-2 rounded-full font-semibold transition-all ${tab === 'liked' ? 'bg-spotify-green text-black' : 'bg-neutral-800 text-white hover:bg-neutral-700'}`}
           onClick={() => setTab('liked')}
         >Liked Songs</button>
-        <button
-          className={`px-4 py-2 rounded-full font-semibold transition-all ${tab === 'downloads' ? 'bg-spotify-green text-black' : 'bg-neutral-800 text-white hover:bg-neutral-700'}`}
-          onClick={() => setTab('downloads')}
-        >Downloads</button>
       </div>
       {/* Tab Content */}
       <AnimatePresence mode="wait">
+        {tab === 'all' && (
+          <motion.div
+            key="all"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="flex items-center mb-4">
+              <input
+                type="text"
+                className="w-full max-w-xs px-3 py-2 rounded bg-neutral-800 text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-spotify-green"
+                placeholder="Search songs..."
+                value={allSongsSearch}
+                onChange={e => { setAllSongsSearch(e.target.value); setAllSongsPage(1); }}
+              />
+            </div>
+            {allSongsLoading && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
+                {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} />)}
+              </div>
+            )}
+            {allSongsError && (
+              <div className="text-red-500 mb-6">
+                Failed to load all songs. <button className="underline" onClick={() => refetchAllSongs()}>Retry</button>
+              </div>
+            )}
+            {allSongsData && (
+              Array.isArray(allSongsData.results) && allSongsData.results.length > 0 ? (
+                <>
+                  <SongList songs={allSongsData.results} />
+                  <div className="flex justify-center items-center gap-4 mt-6">
+                    <button
+                      className="px-4 py-2 rounded bg-neutral-800 text-white disabled:opacity-50"
+                      onClick={() => setAllSongsPage(p => Math.max(1, p - 1))}
+                      disabled={!allSongsData.previous}
+                    >Previous</button>
+                    <span className="text-neutral-400">Page {allSongsPage}</span>
+                    <button
+                      className="px-4 py-2 rounded bg-neutral-800 text-white disabled:opacity-50"
+                      onClick={() => setAllSongsPage(p => p + 1)}
+                      disabled={!allSongsData.next}
+                    >Next</button>
+                  </div>
+                </>
+              ) : (
+                <div className="text-neutral-400 text-center py-12">No songs found.</div>
+              )
+            )}
+          </motion.div>
+        )}
         {tab === 'playlists' && (
           <motion.div
             key="playlists"
@@ -153,28 +209,13 @@ const Library = () => {
                 Failed to load liked songs. <button className="underline" onClick={() => refetchLiked()}>Retry</button>
               </div>
             )}
-            {likedData && <SongList songs={likedData.map((item: { song: Song }) => item.song)} />}
-          </motion.div>
-        )}
-        {tab === 'downloads' && (
-          <motion.div
-            key="downloads"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.3 }}
-          >
-            {downloadsLoading && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
-                {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} />)}
-              </div>
+            {likedData && (
+              likedData.filter((item: { song: Song }) => item.song).length > 0 ? (
+                <SongList songs={likedData.filter((item: { song: Song }) => item.song).map((item: { song: Song }) => item.song)} />
+              ) : (
+                <div className="text-neutral-400 text-center py-12">No liked songs yet. Like some songs to see them here!</div>
+              )
             )}
-            {downloadsError && (
-              <div className="text-red-500 mb-6">
-                Failed to load downloads. <button className="underline" onClick={() => refetchDownloads()}>Retry</button>
-              </div>
-            )}
-            {downloadsData && <SongList songs={downloadsData.map((item: { song: Song }) => item.song)} />}
           </motion.div>
         )}
       </AnimatePresence>

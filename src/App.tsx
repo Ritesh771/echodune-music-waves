@@ -69,14 +69,11 @@ const App = () => {
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <PlayerProvider>
-              <AuthProvider>
-                <>
-                  <MiniPlayer />
-                  <AuthGate />
-                </>
-              </AuthProvider>
-            </PlayerProvider>
+            <AuthProvider>
+              <PlayerProvider>
+                <AuthGate />
+              </PlayerProvider>
+            </AuthProvider>
           </BrowserRouter>
         </TooltipProvider>
       </QueryClientProvider>

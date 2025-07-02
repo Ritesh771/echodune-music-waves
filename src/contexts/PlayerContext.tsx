@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
 
 interface Track {
   id: string;
@@ -32,6 +32,9 @@ interface PlayerContextType {
   prevTrack: () => void;
   queue: Track[];
   playTrack: (track: Track, newQueue?: Track[], index?: number) => void;
+  play: () => void;
+  pause: () => void;
+  seek: (time: number) => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -45,16 +48,49 @@ export const usePlayer = () => {
 };
 
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
-  const [queue, setQueueState] = useState<Track[]>([]);
-  const [currentIndex, setCurrentIndex] = useState<number>(-1);
-  const [currentTrack, setCurrentTrackState] = useState<Track | null>(null);
+  // --- Persistent State Initialization ---
+  const getPersistedState = () => {
+    try {
+      const data = localStorage.getItem('playerState');
+      if (!data) return null;
+      return JSON.parse(data);
+    } catch {
+      return null;
+    }
+  };
+  const persisted = getPersistedState();
+
+  const [queue, setQueueState] = useState<Track[]>(persisted?.queue || []);
+  const [currentIndex, setCurrentIndex] = useState<number>(typeof persisted?.currentIndex === 'number' ? persisted.currentIndex : -1);
+  const [currentTrack, setCurrentTrackState] = useState<Track | null>(persisted?.currentTrack || null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isShuffled, setIsShuffled] = useState(false);
   const [isRepeating, setIsRepeating] = useState(false);
-  const [volume, setVolume] = useState(75);
+  const [volume, setVolume] = useState(typeof persisted?.volume === 'number' ? persisted.volume : 75);
   const [progress, setProgress] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
+  const [currentTime, setCurrentTime] = useState(typeof persisted?.currentTime === 'number' ? persisted.currentTime : 0);
   const [duration, setDuration] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // --- Persist State on Change ---
+  useEffect(() => {
+    const state = {
+      queue,
+      currentIndex,
+      currentTrack,
+      isPlaying,
+      currentTime,
+      volume,
+    };
+    localStorage.setItem('playerState', JSON.stringify(state));
+  }, [queue, currentIndex, currentTrack, isPlaying, currentTime, volume]);
+
+  // --- Restore currentTime after audio loads ---
+  useEffect(() => {
+    if (audioRef.current && typeof currentTime === 'number' && currentTime > 0) {
+      audioRef.current.currentTime = currentTime;
+    }
+  }, [audioRef, currentTrack]);
 
   useEffect(() => {
     console.log('PlayerProvider: currentTrack changed:', currentTrack);
@@ -143,6 +179,64 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsPlaying(true);
   };
 
+  // --- Audio control functions ---
+  const play = () => {
+    setIsPlaying(true);
+    audioRef.current?.play();
+  };
+  const pause = () => {
+    setIsPlaying(false);
+    audioRef.current?.pause();
+  };
+  const seek = (time: number) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+      setCurrentTime(time);
+    }
+  };
+  const setAudioVolume = (v: number) => {
+    setVolume(v);
+    if (audioRef.current) audioRef.current.volume = v / 100;
+  };
+
+  // --- Audio event handlers ---
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+      setProgress((audioRef.current.currentTime / (audioRef.current.duration || 1)) * 100);
+    }
+  };
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) setDuration(audioRef.current.duration);
+  };
+  const handleEnded = () => {
+    nextTrack();
+  };
+
+  // Sync play/pause state
+  useEffect(() => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.play().catch(() => {});
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying, currentTrack]);
+
+  // Sync volume
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume / 100;
+  }, [volume]);
+
+  // Sync track src
+  useEffect(() => {
+    if (audioRef.current && currentTrack) {
+      audioRef.current.src = currentTrack.file;
+      audioRef.current.load();
+      if (isPlaying) audioRef.current.play().catch(() => {});
+    }
+  }, [currentTrack]);
+
   return (
     <PlayerContext.Provider value={{
       currentTrack,
@@ -155,19 +249,29 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       duration,
       setCurrentTrack,
       setQueue,
-      togglePlay,
+      togglePlay: () => (isPlaying ? pause() : play()),
       toggleShuffle,
       toggleRepeat,
-      setVolume,
+      setVolume: setAudioVolume,
       setProgress,
-      setCurrentTime,
+      setCurrentTime: seek,
       setDuration,
       nextTrack,
       prevTrack,
       queue,
       playTrack,
+      play,
+      pause,
+      seek,
     }}>
       {children}
+      <audio
+        ref={audioRef}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onEnded={handleEnded}
+        autoPlay={isPlaying}
+      />
     </PlayerContext.Provider>
   );
 };
