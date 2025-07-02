@@ -112,7 +112,11 @@ const Home = () => {
             Failed to load recommendations. <button className="underline" onClick={() => refetchRec()}>Retry</button>
           </div>
         )}
-        {recData && <SongList songs={recData} />}
+        {recData && (Array.isArray(recData) && recData.length > 0 ? (
+          <SongList songs={recData} />
+        ) : (
+          <div className="text-neutral-400 text-center py-12">You've liked all available songs! Check back later for new music.</div>
+        ))}
       </motion.div>
       {/* Playlists Section */}
       <motion.div className="mb-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>

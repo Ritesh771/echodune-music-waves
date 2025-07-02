@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { API_BASE_URL } from '../config';
 import SongList, { Song } from './SongList';
+import { useNavigate } from 'react-router-dom';
+import { usePlayer } from '../contexts/PlayerContext';
 
 function getFullUrl(path?: string) {
   if (!path) return '/placeholder.svg';
-  if (path.startsWith('http')) return path;
-  return `${API_BASE_URL}/media/${path.replace(/^\/+/, '')}`;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  return `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
 }
 
 const fetchPlaylists = async () => {
@@ -41,7 +43,11 @@ interface Playlist {
 
 const Playlists = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { setQueue, playTrack } = usePlayer();
   const { data: playlists, isLoading, error } = useQuery({ queryKey: ['playlists'], queryFn: fetchPlaylists });
+  // Debug log
+  console.log('Playlists API response:', playlists);
   const [showModal, setShowModal] = useState(false);
   const [newName, setNewName] = useState('');
   const mutation = useMutation({
@@ -67,18 +73,52 @@ const Playlists = () => {
       {isLoading && <div className="text-white">Loading playlists...</div>}
       {error && <div className="text-red-500">Failed to load playlists.</div>}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {playlists && playlists.map((playlist: Playlist) => (
-          <div key={playlist.id} className="bg-neutral-900 p-4 rounded-lg flex flex-col items-center">
-            <img
-              src={getFullUrl(playlist.cover_image)}
-              alt={playlist.name}
-              className="w-32 h-32 object-cover rounded-md mb-4"
-            />
-            <h2 className="text-lg font-bold text-white mb-1 truncate w-full text-center">{playlist.name}</h2>
-            <p className="text-sm text-neutral-400 mb-2">{playlist.songs.length} songs</p>
-            {/* TODO: Link to playlist detail page */}
-          </div>
-        ))}
+        {playlists && playlists.map((playlist: Playlist) => {
+          // Convert playlist.songs to Track[] for the player
+          const tracks = playlist.songs.map(song => ({
+            id: String(song.id),
+            title: song.title,
+            artist: song.artist,
+            album: song.album,
+            duration: String(song.duration),
+            cover: song.cover_image || '',
+            file: song.file,
+          }));
+          return (
+            <div
+              key={playlist.id}
+              className="relative bg-gradient-to-b from-neutral-900 to-neutral-950 rounded-xl shadow-lg flex flex-col items-center cursor-pointer group overflow-hidden hover:scale-[1.03] transition-transform duration-200"
+              onClick={() => navigate(`/playlists/${playlist.id}`)}
+            >
+              <div className="relative w-full aspect-square bg-neutral-800 flex items-center justify-center">
+                <img
+                  src={getFullUrl(playlist.cover_image)}
+                  alt={playlist.name}
+                  className="w-full h-full object-cover rounded-t-xl group-hover:brightness-90 transition"
+                />
+                <button
+                  className="absolute bottom-4 right-4 bg-spotify-green text-black rounded-full p-4 shadow-xl opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-110 transition-all duration-200 z-10 hover:scale-125 hover:shadow-2xl"
+                  onClick={e => {
+                    e.stopPropagation();
+                    if (tracks.length > 0) {
+                      setQueue(tracks, 0);
+                      playTrack(tracks[0], tracks, 0);
+                    }
+                  }}
+                  aria-label={`Play ${playlist.name}`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" className="w-7 h-7">
+                    <path d="M5 3.867v16.266c0 1.068 1.14 1.728 2.08 1.18l13.04-8.133c.92-.574.92-1.786 0-2.36L7.08 2.687C6.14 2.14 5 2.8 5 3.867z" />
+                  </svg>
+                </button>
+              </div>
+              <div className="w-full flex flex-col items-center px-2 py-4">
+                <h2 className="text-base font-bold text-white mb-1 truncate w-full text-center group-hover:text-spotify-green transition-colors">{playlist.name}</h2>
+                <p className="text-xs text-neutral-400 mb-0.5">{playlist.songs.length} song{playlist.songs.length === 1 ? '' : 's'}</p>
+              </div>
+            </div>
+          );
+        })}
       </div>
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
@@ -113,4 +153,6 @@ const Playlists = () => {
   );
 };
 
+
 export default Playlists; 
+

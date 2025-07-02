@@ -1,73 +1,112 @@
-# Welcome to your Lovable project
+# Echodune Music Waves
 
-## Project info
+A full-stack Spotify-like music streaming app with collaborative playlists, robust playback, and a modern UI.
 
-**URL**: https://lovable.dev/projects/8a48e249-489c-4ff0-84e3-d520849bfe29
+---
 
-## How can I edit this code?
+## Features
+- Global audio playback with MiniPlayer
+- User authentication (JWT, Google OAuth)
+- Liked songs, playlists, and collaborative playlists
+- Add/remove songs, invite collaborators by email
+- Real-time UI sync, search, and more
 
-There are several ways of editing your application.
+---
 
-**Use Lovable**
+## Prerequisites
+- **Python 3.9+** (for backend)
+- **Node.js 18+ & npm** (for frontend)
+- **Git** (to clone the repo)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/8a48e249-489c-4ff0-84e3-d520849bfe29) and start prompting.
+---
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+## Directory Structure
+```
+/echodune-music-waves
+  /echodune         # Django backend
+  /src              # React frontend
+  /public           # Static assets
+  ...
 ```
 
-**Edit a file directly in GitHub**
+---
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Backend Setup (Django)
 
-**Use GitHub Codespaces**
+1. **Navigate to the backend directory:**
+   ```sh
+   cd echodune
+   ```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+2. **Create and activate a virtual environment:**
+   ```sh
+   python3 -m venv env
+   source env/bin/activate  # On Windows: env\Scripts\activate
+   ```
 
-## What technologies are used for this project?
+3. **Install dependencies:**
+   ```sh
+   pip install -r requirements.txt
+   ```
 
-This project is built with:
+4. **Create a `.env` file in `echodune/` with the following (edit as needed):**
+   ```env
+   DJANGO_SECRET_KEY=your-secret-key-here
+   GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
+   # Add any other secrets as needed
+   ```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+5. **Apply migrations:**
+   ```sh
+   python manage.py migrate
+   ```
 
-## How can I deploy this project?
+6. **Create a superuser (optional, for admin):**
+   ```sh
+   python manage.py createsuperuser
+   ```
 
-Simply open [Lovable](https://lovable.dev/projects/8a48e249-489c-4ff0-84e3-d520849bfe29) and click on Share -> Publish.
+7. **Run the backend server:**
+   ```sh
+   python manage.py runserver
+   ```
+   The API will be available at `http://localhost:8000/`
 
-## Can I connect a custom domain to my Lovable project?
+---
 
-Yes, you can!
+## Frontend Setup (React)
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+1. **Navigate to the frontend directory:**
+   ```sh
+   cd ../src
+   ```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+2. **Install dependencies:**
+   ```sh
+   npm install
+   ```
+
+3. **(Optional) Create a `.env` file for frontend config:**
+   - If you need to override API endpoints, create `.env` and set `VITE_API_BASE_URL`.
+
+4. **Run the frontend dev server:**
+   ```sh
+   npm run dev
+   ```
+   The app will be available at `http://localhost:8080/`
+
+---
+
+## Usage
+- Register or log in with your account (or Google OAuth)
+- Browse, search, and play songs
+- Create playlists, like songs, and manage your library
+- Invite collaborators to playlists by email
+- Collaborators can add/remove songs and see shared playlists
+- Enjoy a seamless, Spotify-like experience!
+
+---
+
+## Developer Credits
+
+**Developed by Ritesh and Sanath**

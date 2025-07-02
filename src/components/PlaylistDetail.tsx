@@ -2,15 +2,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { API_BASE_URL } from '../config';
 import SongList, { Song } from './SongList';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Play, Heart, Share2, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../contexts/AuthContext';
 
 function getFullUrl(path?: string) {
   if (!path) return '/placeholder.svg';
-  if (path.startsWith('http')) return path;
-  if (path.startsWith('media/')) return `${API_BASE_URL}/${path}`;
-  return `${API_BASE_URL}/media/${path.replace(/^\/+/, '')}`;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  return `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
 }
 
 const getAuthHeaders = () => {
@@ -82,22 +82,39 @@ const PlaylistDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: playlist, isLoading, error } = useQuery(['playlist', id], () => fetchPlaylist(id!));
-  const removeMutation = useMutation(removeSongFromPlaylist, {
-    onSuccess: () => queryClient.invalidateQueries(['playlist', id]),
+  const { user } = useAuth();
+  const { data: playlist, isLoading, error } = useQuery({
+    queryKey: ['playlist', id],
+    queryFn: () => fetchPlaylist(id!),
   });
-  const addMutation = useMutation(addSongToPlaylist, {
-    onSuccess: () => queryClient.invalidateQueries(['playlist', id]),
+  const removeMutation = useMutation({
+    mutationFn: removeSongFromPlaylist,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['playlist', id] }),
   });
-  const likeMutation = useMutation(() => likePlaylist(id!), {
-    onSuccess: () => queryClient.invalidateQueries(['playlist', id]),
+  const addMutation = useMutation({
+    mutationFn: addSongToPlaylist,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['playlist', id] }),
   });
-  const shareMutation = useMutation(() => sharePlaylist(id!), {
-    onSuccess: () => queryClient.invalidateQueries(['playlist', id]),
+  const likeMutation = useMutation({
+    mutationFn: () => likePlaylist(id!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['playlist', id] }),
+  });
+  const shareMutation = useMutation({
+    mutationFn: () => sharePlaylist(id!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['playlist', id] }),
   });
   const [showAddModal, setShowAddModal] = useState(false);
   const [songPage, setSongPage] = useState(1);
-  const { data: songData, isLoading: isSongsLoading } = useQuery(['all-songs', songPage], () => fetchSongs(songPage), { enabled: showAddModal });
+  const { data: songData, isLoading: isSongsLoading } = useQuery({
+    queryKey: ['all-songs', songPage],
+    queryFn: () => fetchSongs(songPage),
+    enabled: showAddModal,
+  });
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteStatus, setInviteStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [inviteError, setInviteError] = useState('');
+  const [leaveStatus, setLeaveStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [leaveError, setLeaveError] = useState('');
 
   const handleRemoveSong = (songId: number) => {
     removeMutation.mutate({ playlistId: id!, songId });
@@ -111,6 +128,68 @@ const PlaylistDetail = () => {
   const handleShare = () => {
     shareMutation.mutate();
   };
+
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setInviteStatus('loading');
+    setInviteError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/playlists/${id}/add-collaborator/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+        },
+        body: JSON.stringify({ email: inviteEmail }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setInviteStatus('error');
+        setInviteError(data.error || 'Failed to add collaborator');
+        return;
+      }
+      setInviteStatus('success');
+      setInviteEmail('');
+      queryClient.invalidateQueries({ queryKey: ['playlist', id] });
+    } catch (err) {
+      setInviteStatus('error');
+      setInviteError('Failed to add collaborator');
+    }
+  };
+
+  const handleLeave = async () => {
+    setLeaveStatus('loading');
+    setLeaveError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/playlists/${id}/remove-collaborator/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+        },
+        body: JSON.stringify({ email: user?.email }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setLeaveStatus('error');
+        setLeaveError(data.error || 'Failed to leave playlist');
+        return;
+      }
+      setLeaveStatus('success');
+      queryClient.invalidateQueries({ queryKey: ['playlist', id] });
+      navigate('/playlists');
+    } catch (err) {
+      setLeaveStatus('error');
+      setLeaveError('Failed to leave playlist');
+    }
+  };
+
+  // Debug logs for troubleshooting invite form visibility
+  if (playlist && user) {
+    console.log('user:', user);
+    console.log('playlist.user:', playlist.user);
+    console.log('collaborators:', playlist.collaborators);
+  }
 
   return (
     <div className="p-6 pb-32">
@@ -159,12 +238,52 @@ const PlaylistDetail = () => {
               {playlist.share_link && (
                 <div className="text-xs text-spotify-green mt-1">Share link: <span className="underline cursor-pointer">{playlist.share_link}</span></div>
               )}
+              {user && (playlist.user === user.username || (playlist.collaborators && playlist.collaborators.some((c: { user: string }) => c.user === user.username))) && (
+                <form onSubmit={handleInvite} className="mt-4 flex flex-col sm:flex-row gap-2 items-start sm:items-end">
+                  <input
+                    type="email"
+                    className="px-3 py-2 rounded bg-neutral-800 text-white placeholder:text-neutral-400"
+                    placeholder="Invite collaborator by email"
+                    value={inviteEmail}
+                    onChange={e => setInviteEmail(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="submit"
+                    className="bg-purple-600 text-white px-4 py-2 rounded font-semibold hover:bg-purple-500"
+                    disabled={inviteStatus === 'loading'}
+                  >Invite</button>
+                  {inviteStatus === 'success' && <span className="text-green-400 ml-2">Collaborator added!</span>}
+                  {inviteStatus === 'error' && <span className="text-red-400 ml-2">{inviteError}</span>}
+                </form>
+              )}
+              <div className="mt-4">
+                <h3 className="text-white font-semibold mb-2">Collaborators</h3>
+                <ul className="space-y-1">
+                  <li className="text-spotify-green font-semibold">Owner: {playlist.user}</li>
+                  {playlist.collaborators && playlist.collaborators.length > 0 ? (
+                    playlist.collaborators.map((collab: { id: number; user: string }) => (
+                      <li key={collab.id} className="flex items-center gap-2 text-neutral-300">
+                        {collab.user}
+                        {user && user.username === collab.user && playlist.user !== user.username && (
+                          <button
+                            className="ml-2 px-2 py-1 rounded bg-red-600 text-white text-xs hover:bg-red-700"
+                            onClick={handleLeave}
+                            disabled={leaveStatus === 'loading'}
+                          >Leave Playlist</button>
+                        )}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-neutral-400">No collaborators yet.</li>
+                  )}
+                  {leaveStatus === 'error' && <div className="text-red-400 mt-1">{leaveError}</div>}
+                </ul>
+              </div>
             </div>
           </div>
           <SongList
             songs={playlist.songs}
-            onLikeToggle={() => {}}
-            likedSongIds={[]}
           />
           <div className="mt-6">
             <h2 className="text-lg font-bold text-white mb-2">Remove a song</h2>

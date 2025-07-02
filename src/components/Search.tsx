@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search as SearchIcon, Play, Clock, ListMusic } from 'lucide-react';
+import { Search as SearchIcon, Play, Pause, Clock, ListMusic } from 'lucide-react';
 import { usePlayer } from '../contexts/PlayerContext';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -7,10 +7,17 @@ import { API_BASE_URL } from '../config';
 import { motion, AnimatePresence } from 'framer-motion';
 import SongList, { Song } from './SongList';
 
+interface Playlist {
+  id: number;
+  name: string;
+  cover_image?: string;
+  songs: Song[];
+}
+
 function getFullUrl(path?: string) {
   if (!path) return '/placeholder.svg';
-  if (path.startsWith('http')) return path;
-  return `${API_BASE_URL}/media/${path.replace(/^\/+/,'')}`;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  return `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
 }
 
 const Skeleton = () => (
@@ -29,9 +36,13 @@ const getAuthHeaders = () => {
 
 const Search = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const { setCurrentTrack, togglePlay } = usePlayer();
+  const { setCurrentTrack, togglePlay, currentTrack, isPlaying } = usePlayer();
   const location = useLocation();
   const queryClient = useQueryClient();
+  const [songPage, setSongPage] = useState(1);
+  const [artistFilter, setArtistFilter] = useState('');
+  const [albumFilter, setAlbumFilter] = useState('');
+  const SONGS_PER_PAGE = 12;
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -56,8 +67,11 @@ const Search = () => {
   // Clear recent search mutation
   const clearRecentMutation = useMutation({
     mutationFn: async () => {
-      // No backend endpoint for clear all, so just refetch for now
-      // Optionally, implement a DELETE endpoint for all recent searches
+      const res = await fetch(`${API_BASE_URL}/api/auth/recent-search/`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) throw new Error('Failed to clear recent searches');
       return [];
     },
     onSuccess: () => {
@@ -66,7 +80,7 @@ const Search = () => {
   });
 
   // Unified search (songs + playlists)
-  const { data: searchData, isLoading, error, refetch } = useQuery({
+  const { data: searchData, isLoading, error, refetch } = useQuery<{ songs: Song[]; playlists: Playlist[] }>({
     queryKey: ['search', searchQuery],
     queryFn: async () => {
       const url = `${API_BASE_URL}/api/auth/search/?q=${encodeURIComponent(searchQuery)}`;
@@ -89,7 +103,13 @@ const Search = () => {
       cover: getFullUrl(song.cover_image),
       file: getFullUrl(song.file),
     });
-    togglePlay();
+    // Always start playing when selecting a new song
+    if (!currentTrack || String(song.id) !== currentTrack.id) {
+      if (!isPlaying) togglePlay();
+    } else {
+      // If already current, toggle play/pause
+      togglePlay();
+    }
   };
 
   return (
@@ -163,37 +183,85 @@ const Search = () => {
         <>
           {/* Songs Section */}
           <motion.div className="mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
-            <div className="flex items-center mb-2">
-              <Play className="text-spotify-green mr-2" size={20} />
+            <div className="flex items-center mb-2 gap-4">
+              <Play className="text-spotify-green" size={20} />
               <span className="text-white font-semibold text-lg">Songs</span>
+              <input
+                type="text"
+                className="px-2 py-1 rounded bg-neutral-800 text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-spotify-green text-xs"
+                placeholder="Filter by artist"
+                value={artistFilter}
+                onChange={e => { setArtistFilter(e.target.value); setSongPage(1); }}
+                style={{ minWidth: 120 }}
+              />
+              <input
+                type="text"
+                className="px-2 py-1 rounded bg-neutral-800 text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-spotify-green text-xs"
+                placeholder="Filter by album"
+                value={albumFilter}
+                onChange={e => { setAlbumFilter(e.target.value); setSongPage(1); }}
+                style={{ minWidth: 120 }}
+              />
             </div>
-            {searchData.songs && searchData.songs.length > 0 ? (
-              <div className="space-y-2">
-                {searchData.songs.map((song: Song, index: number) => (
-                  <motion.div
-                    key={song.id}
-                    className="flex items-center space-x-4 p-2 rounded-md hover:bg-neutral-800 cursor-pointer group"
-                    onClick={() => playTrack(song)}
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <div className="w-4 text-neutral-400 text-sm">{index + 1}</div>
-                    <img src={getFullUrl(song.cover_image)} alt={song.title} className="w-10 h-10 rounded-md object-cover" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-white truncate">{song.title}</p>
-                      <p className="text-sm text-neutral-400 truncate">{song.artist}</p>
-                    </div>
-                    <div className="text-sm text-neutral-400">{song.duration ? `${Math.floor(song.duration / 60)}:${('0' + Math.floor(song.duration % 60)).slice(-2)}` : ''}</div>
-                    <motion.button
-                      className="opacity-0 group-hover:opacity-100 w-8 h-8 bg-spotify-green rounded-full flex items-center justify-center hover:bg-green-500 transition-all"
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      <Play size={12} fill="white" className="text-white ml-0.5" />
-                    </motion.button>
-                  </motion.div>
-                ))}
-              </div>
-            ) : (
+            {(searchData.songs as Song[]) && (searchData.songs as Song[]).length > 0 ? (() => {
+              // Filter and paginate songs
+              const filtered: Song[] = (searchData.songs as Song[]).filter((song: Song) =>
+                (!artistFilter || song.artist.toLowerCase().includes(artistFilter.toLowerCase())) &&
+                (!albumFilter || (song.album || '').toLowerCase().includes(albumFilter.toLowerCase()))
+              );
+              const totalPages = Math.ceil(filtered.length / SONGS_PER_PAGE);
+              const startIdx = (songPage - 1) * SONGS_PER_PAGE;
+              const pageSongs = filtered.slice(startIdx, startIdx + SONGS_PER_PAGE);
+              return filtered.length > 0 ? (
+                <>
+                  <div className="space-y-2">
+                    {pageSongs.map((song: Song, index: number) => (
+                      <motion.div
+                        key={song.id}
+                        className={`flex items-center space-x-4 p-2 rounded-md cursor-pointer group transition ${currentTrack && String(song.id) === currentTrack.id ? 'bg-neutral-800 ring-2 ring-spotify-green' : 'hover:bg-neutral-800'}`}
+                        onClick={() => playTrack(song)}
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <div className="w-4 text-neutral-400 text-sm">{startIdx + index + 1}</div>
+                        <img src={getFullUrl(song.cover_image)} alt={song.title} className="w-10 h-10 rounded-md object-cover" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-white truncate">{song.title}</p>
+                          <p className="text-sm text-neutral-400 truncate">{song.artist}</p>
+                        </div>
+                        <div className="text-sm text-neutral-400">{song.duration ? `${Math.floor(song.duration / 60)}:${('0' + Math.floor(song.duration % 60)).slice(-2)}` : ''}</div>
+                        <motion.button
+                          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${currentTrack && String(song.id) === currentTrack.id ? 'bg-spotify-green' : 'bg-neutral-700 group-hover:bg-spotify-green'}`}
+                          onClick={e => { e.stopPropagation(); playTrack(song); }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          {currentTrack && String(song.id) === currentTrack.id && isPlaying ? (
+                            <Pause size={16} fill="white" className="text-white ml-0.5" />
+                          ) : (
+                            <Play size={16} fill="white" className="text-white ml-0.5" />
+                          )}
+                        </motion.button>
+                      </motion.div>
+                    ))}
+                  </div>
+                  <div className="flex justify-center items-center gap-4 mt-6">
+                    <button
+                      className="px-4 py-2 rounded bg-neutral-800 text-white disabled:opacity-50"
+                      onClick={() => setSongPage(p => Math.max(1, p - 1))}
+                      disabled={songPage === 1}
+                    >Previous</button>
+                    <span className="text-neutral-400">Page {songPage} / {totalPages}</span>
+                    <button
+                      className="px-4 py-2 rounded bg-neutral-800 text-white disabled:opacity-50"
+                      onClick={() => setSongPage(p => Math.min(totalPages, p + 1))}
+                      disabled={songPage === totalPages}
+                    >Next</button>
+                  </div>
+                </>
+              ) : (
+                <div className="text-neutral-400 px-4 py-6">No songs found.</div>
+              );
+            })() : (
               <div className="text-neutral-400 px-4 py-6">No songs found.</div>
             )}
           </motion.div>
@@ -205,7 +273,7 @@ const Search = () => {
             </div>
             {searchData.playlists && searchData.playlists.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {searchData.playlists.map((playlist: any) => (
+                {searchData.playlists.map((playlist: Playlist) => (
                   <motion.div
                     key={playlist.id}
                     className="bg-neutral-900 bg-opacity-50 hover:bg-opacity-70 p-4 rounded-lg transition-all cursor-pointer group transform hover:scale-105"

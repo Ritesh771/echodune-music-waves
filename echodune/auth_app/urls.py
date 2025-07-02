@@ -1,10 +1,11 @@
 from django.urls import path
 from .views import (
     RegisterView, LoginView, LogoutView, UserProfileView, GoogleLoginView, SongListAPIView,
-    PlaylistListCreateView, PlaylistDetailView, LikedSongListCreateView, LikedSongDeleteView,
+    PlaylistListCreateView, PlaylistDetailView, LikedSongListCreateView, LikedSongDeleteView, LikedSongCreateView,
     QueueView, DownloadListCreateView, DownloadDeleteView,
     PlaylistCollaboratorAddView, PlaylistCollaboratorRemoveView, PlaylistLikeView,
-    PlaylistShareView, PlaylistJoinSharedView, RecentSearchListCreateView, RecommendationView, SearchView, PlaybackControlView
+    PlaylistShareView, PlaylistJoinSharedView, RecentSearchListCreateView, RecommendationView, SearchView, PlaybackControlView,
+    liked_song_ids
 )
 
 urlpatterns = [
@@ -17,7 +18,9 @@ urlpatterns = [
     path('playlists/', PlaylistListCreateView.as_view(), name='playlist-list-create'),
     path('playlists/<int:pk>/', PlaylistDetailView.as_view(), name='playlist-detail'),
     path('liked-songs/', LikedSongListCreateView.as_view(), name='liked-song-list-create'),
-    path('liked-songs/<int:song_id>/', LikedSongDeleteView.as_view(), name='liked-song-delete'),
+    path('liked-songs/<int:song_id>/', LikedSongCreateView.as_view(), name='liked-song-create'),
+    path('liked-songs/<int:song_id>/delete/', LikedSongDeleteView.as_view(), name='liked-song-delete'),
+    path('liked-songs/ids/', liked_song_ids, name='liked-song-ids'),
 
     # Queue
     path('queue/', QueueView.as_view(), name='queue'),

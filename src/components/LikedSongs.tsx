@@ -34,16 +34,16 @@ const LikedSongs = () => {
   const queryClient = useQueryClient();
   type LikedSongResponse = { song: Song }[];
   const { data, isLoading, error } = useQuery<LikedSongResponse>({
-    queryKey: ['liked-songs'],
+    queryKey: ['liked-songs-list'],
     queryFn: fetchLikedSongs,
   });
   const mutation = useMutation({
     mutationFn: unlikeSong,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['liked-songs'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['liked-songs-list'] }),
   });
 
-  const likedSongIds = data ? data.map((item) => item.song.id) : [];
-  const songs = data ? data.map((item) => item.song) : [];
+  const likedSongIds = data ? data.filter(item => item.song).map(item => item.song.id) : [];
+  const songs = data ? data.filter(item => item.song).map(item => item.song) : [];
 
   return (
     <motion.div
@@ -67,7 +67,7 @@ const LikedSongs = () => {
         )}
       </AnimatePresence>
       {error && <div className="text-red-500">Failed to load liked songs.</div>}
-      <SongList songs={songs} likedSongIds={likedSongIds} onLikeToggle={(songId) => mutation.mutate({ songId })} />
+      <SongList songs={songs} />
     </motion.div>
   );
 };

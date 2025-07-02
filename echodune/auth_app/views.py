@@ -14,8 +14,10 @@ import requests
 from django.contrib.auth import get_user_model
 from rest_framework.response import Response
 from django.db.models import Q
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework import viewsets
+from django.db import models
+from django.core.mail import send_mail
 
 User = get_user_model()
 
@@ -122,7 +124,11 @@ class PlaylistListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Playlist.objects.filter(user=self.request.user).order_by('-created_at')
+        # Show playlists owned by the user or where the user is a collaborator
+        return Playlist.objects.filter(
+            models.Q(user=self.request.user) |
+            models.Q(collaborators__user=self.request.user)
+        ).distinct().order_by('-created_at')
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -132,17 +138,48 @@ class PlaylistDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Playlist.objects.filter(user=self.request.user)
+        # Allow owner or collaborator to access playlist
+        return Playlist.objects.filter(
+            models.Q(user=self.request.user) |
+            models.Q(collaborators__user=self.request.user)
+        ).distinct()
+
+    def patch(self, request, *args, **kwargs):
+        playlist = self.get_object()
+        add_song_id = request.data.get('add_song')
+        remove_song_id = request.data.get('remove_song')
+        updated = False
+        if add_song_id:
+            try:
+                song = Song.objects.get(id=add_song_id)
+                playlist.songs.add(song)
+                updated = True
+            except Song.DoesNotExist:
+                return Response({'error': 'Song not found'}, status=404)
+        if remove_song_id:
+            try:
+                song = Song.objects.get(id=remove_song_id)
+                playlist.songs.remove(song)
+                updated = True
+            except Song.DoesNotExist:
+                return Response({'error': 'Song not found'}, status=404)
+        if updated:
+            playlist.save()
+        serializer = self.get_serializer(playlist)
+        return Response(serializer.data)
 
 class LikedSongListCreateView(generics.ListCreateAPIView):
     serializer_class = LikedSongSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return LikedSong.objects.filter(user=self.request.user).order_by('-created_at')
+        qs = LikedSong.objects.filter(user=self.request.user).order_by('-created_at')
+        print(f"[DEBUG] LikedSongListCreateView.get_queryset for user {self.request.user}: {[ls.song.id for ls in qs]}")
+        return qs
 
     def perform_create(self, serializer):
         song_id = self.request.data.get('song_id')
+        print(f"[DEBUG] LikedSongListCreateView.perform_create for user {self.request.user}, song_id {song_id}")
         song = Song.objects.get(id=song_id)
         serializer.save(user=self.request.user, song=song)
 
@@ -153,6 +190,27 @@ class LikedSongDeleteView(generics.DestroyAPIView):
     def get_object(self):
         song_id = self.kwargs['song_id']
         return LikedSong.objects.get(user=self.request.user, song__id=song_id)
+
+class LikedSongCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, song_id):
+        user = request.user
+        try:
+            song = Song.objects.get(id=song_id)
+        except Song.DoesNotExist:
+            return Response({'error': 'Song not found'}, status=status.HTTP_404_NOT_FOUND)
+        liked, created = LikedSong.objects.get_or_create(user=user, song=song)
+        if created:
+            return Response({'message': 'Song liked'}, status=status.HTTP_201_CREATED)
+        else:
+            return Response({'message': 'Song already liked'}, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def liked_song_ids(request):
+    liked_ids = LikedSong.objects.filter(user=request.user).values_list('song_id', flat=True)
+    return Response(list(liked_ids))
 
 # --- Queue Management ---
 class QueueView(APIView):
@@ -211,9 +269,25 @@ class PlaylistCollaboratorAddView(APIView):
         playlist = Playlist.objects.get(pk=pk)
         if playlist.user != request.user:
             return Response({'error': 'Only owner can add collaborators'}, status=403)
-        user_id = request.data.get('user_id')
-        user = CustomUser.objects.get(id=user_id)
+        email = request.data.get('email')
+        if not email:
+            return Response({'error': 'Email is required'}, status=400)
+        try:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            return Response({'error': 'User with this email does not exist'}, status=404)
         PlaylistCollaborator.objects.get_or_create(playlist=playlist, user=user)
+        # Send email notification
+        try:
+            send_mail(
+                subject=f"You've been added as a collaborator to playlist '{playlist.name}'",
+                message=f"Hi {user.username},\n\nYou have been added as a collaborator to the playlist '{playlist.name}'. You can now view and add songs to this playlist in your account!\n\n- {playlist.user.username}",
+                from_email=None,  # Uses DEFAULT_FROM_EMAIL
+                recipient_list=[user.email],
+                fail_silently=True,
+            )
+        except Exception as e:
+            pass  # Optionally log error
         return Response({'message': 'Collaborator added'})
 
 class PlaylistCollaboratorRemoveView(APIView):
@@ -269,6 +343,9 @@ class RecentSearchListCreateView(generics.ListCreateAPIView):
         return RecentSearch.objects.filter(user=self.request.user)
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+    def delete(self, request, *args, **kwargs):
+        RecentSearch.objects.filter(user=request.user).delete()
+        return Response({'message': 'Recent searches cleared.'}, status=204)
 
 # --- Recommendations (basic) ---
 class RecommendationView(APIView):
@@ -281,6 +358,9 @@ class RecommendationView(APIView):
         song_ids = set(list(liked_song_ids) + list(playlist_song_ids))
         # Recommend songs not already liked or in playlists
         recommendations = Song.objects.exclude(id__in=song_ids).order_by('?')[:10]
+        if not recommendations.exists():
+            # Fallback: show random songs from the whole catalog
+            recommendations = Song.objects.all().order_by('?')[:10]
         serializer = SongSerializer(recommendations, many=True)
         return Response(serializer.data)
 
