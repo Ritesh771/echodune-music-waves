@@ -69,3 +69,41 @@ public/lovable-uploads/
 
 # --- Misc ---
 *.sw?
+
+
+
+
+.echodune/venv/
+.echodune/venv/*
+ 
+# Python
+*.cover
+*.orig
+*.spec
+.coverage
+htmlcov/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.pyre/
+ 
+# Temp files
+*.tmp
+tmp/
+temp/
+ 
+# Frontend source maps
+*.map
+ 
+# Output archives
+*.zip
+*.tar.gz
+*.tar
+*.gz
+ 
+# Misc
+*.log.*0
+ 
+echodune/venv/
+echodune/media/
+ 
